@@ -1,30 +1,694 @@
 ---
 title: "Analyses and figures used in the paper: Globally consistent reef size spectra with fishes and invertebrates"
-author: "F. J. Heather"
+author: "Freddie J. Heather"
 date: "03/08/2020"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
 ---
+
+When using these analyses, please cite: Heather et al. (2020) Globally consistent reef size spectra with fishes and invertebrates
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+# required packages
+library(tidyverse)
+library(ggsci)
+library(cowplot)
+library(data.table)
+library(scales)
+library(rgdal)
+library(ggpubr)
+library(lme4)
+
+# colour pallete used (from ggsci package)
+mypal <- pal_npg("nrc")(9)
 ```
 
-## R Markdown
+## Main text
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+### Conceptual diagram
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+```{r fig1, warning=F, message=F}
+# Conceptual diagram of the hypotheses. Made using simulated data
+
+set.seed(1)
+
+# setting parameters for normal distribution plots (for steepening effect)
+invr_mean <- rlnorm(n = 10, meanlog = 1.8, sdlog = 0.5) + 10
+vert_mean <- rlnorm(n = 10, meanlog = 2, sdlog = 1) + 15
+invr_sd   <- rnorm(n = 10, mean = 8, sd = 1)
+vert_sd   <- rnorm(n = 10, mean = 10, sd = 1)
+
+# Figure 1A
+p1 <-
+  tibble(type = "invr", spp =1:10, mean = invr_mean, sd = invr_sd) %>% 
+  bind_rows(tibble(type = "vert", spp =1:10, mean = vert_mean, sd = vert_sd)) %>% 
+  mutate(vals = map2(mean, sd, .f=~dnorm(0:100, mean=.x, sd=.y))) %>% 
+  unnest(cols = "vals") %>% 
+  mutate(id = paste0(type, spp)) %>% 
+  mutate(x = rep(0:100, 20)) %>% 
+  ggplot(aes(x, vals, fill=type, group=id)) +
+  geom_area(position = 'identity', alpha=0.2, aes(col=type)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(breaks = NULL, expand = c(0, 0)) +
+  theme_classic(24) +
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(), 
+        legend.position = c(0.8, 0.8), legend.background = element_rect(fill = "transparent"),
+        axis.line = element_line(arrow = arrow(type = "open"))) +
+  labs(x = "Log(mass)",
+       y = "Probability density") +
+  scale_fill_npg(name="Species", labels = c("Invertebrate", "Fish"), 
+                 guide = guide_legend(override.aes = list(alpha = 1))) + 
+  scale_colour_npg(guide = "none")
+
+# Figure 1B
+p2 <-
+  tibble(mass = 1:10, invr = (8 + (-1.2*mass)), vert =  (6 + (-1*mass))) %>% 
+  gather(key = "type", value = "abundance", -mass) %>% 
+  ggplot(aes(mass, abundance, col=type)) +
+  geom_ribbon(aes(ymin=(6 + (-1*mass)), ymax=(8 + (-1.2*mass))), alpha=0.3, col="transparent", fill = mypal[1]) +
+  geom_line(size=3) + 
+  geom_point(aes(fill = type), col="black", shape=21, size=3) + 
+  theme_classic(24) +
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(), 
+        axis.line = element_line(arrow = arrow(type = "open")), 
+        legend.position = c(0.3, 0.2), 
+        legend.background = element_rect(fill = "transparent")) + 
+  labs(x = "Log(mass)",
+       y = "Log(abundance)") +
+  scale_colour_npg(name="Community", labels = c("Fish and Invertebrates", "Fish-only")) + 
+  scale_fill_npg(guide = "none")
+
+# set new distribution params (for shallowing effect)
+invr_sd <- rnorm(n = 10, mean = 8, sd = 1.3)
+invr_mean <- rlnorm(n = 10, meanlog = 1.8, sdlog = 0.8) + 20
+
+# Figure 1C
+p3 <- 
+  tibble(type = "invr", spp =1:10, mean = invr_mean, sd = invr_sd) %>% 
+  bind_rows(tibble(type = "vert", spp =1:10, mean = vert_mean, sd = vert_sd)) %>% 
+  mutate(vals = map2(mean, sd, .f=~dnorm(0:100, mean=.x, sd=.y))) %>% 
+  unnest(cols = "vals") %>% 
+  mutate(id = paste0(type, spp)) %>% 
+  mutate(x = rep(0:100, 20)) %>% 
+  ggplot(aes(x, vals, fill=type, group=id)) +
+  geom_area(position = 'identity', alpha=0.2, aes(col=type)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(breaks = NULL, expand = c(0, 0)) +
+  theme_classic(24) +
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(), 
+        legend.position = c(0.8, 0.8), 
+        legend.background = element_rect(fill = "transparent"),
+        axis.line = element_line(arrow = arrow(type = "open"))) +
+  labs(x = "Log(mass)",
+       y = "Probability density") +
+  scale_fill_npg(name="Species", labels = c("Invertebrate", "Fish"), 
+                 guide = guide_legend(override.aes = list(alpha = 1))) + 
+  scale_colour_npg(guide = "none")
+
+# Figure 1D
+p4 <-
+  tibble(mass = 1:10, invr = (6.2 + (-0.8*mass)), vert =  (6 + (-1*mass))) %>% 
+  gather(key = "type", value = "abundance", -mass) %>% 
+  ggplot(aes(mass, abundance, col=type)) +
+  geom_ribbon(aes(ymin=(6 + (-1*mass)), ymax=(6.2 + (-0.8*mass))), alpha=0.3, col="transparent", fill = mypal[1]) +
+  geom_line(size=3) + 
+  geom_point(aes(fill = type), col="black", shape=21, size=3) + 
+  theme_classic(24) +
+  theme(panel.grid = element_blank(),
+        panel.border = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(), 
+        axis.line = element_line(arrow = arrow(type = "open")), 
+        legend.position = c(0.3, 0.2), 
+        legend.background = element_rect(fill = "transparent")) + 
+  labs(x = "Log(mass)",
+       y = "Log(abundance)") +
+  scale_colour_npg(name="Community", labels = c("Fish and Invertebrates", "Fish-only")) + 
+  scale_fill_npg(guide = "none")
+
+# Combined figure
+p5 <- plot_grid(p1, p2, p3, p4, labels = c('A', 'B','C', 'D'), label_size = 24, ncol = 2)
+
+# Adding the annotations (curves, text, images)
+fig_1 <-
+  ggdraw(p5) +
+  geom_curve(aes(xend = 0.59, yend = 0.9, x = 0.175, y = 0.89), 
+             size=4, 
+             col ="black", 
+             arrow = arrow(length = unit(0.03, "npc")), 
+             lineend="round", 
+             curvature = -0.2) +
+  geom_curve(aes(xend = 0.59, yend = 0.9, x = 0.175, y = 0.89), 
+             size=3, 
+             col = mypal[1], 
+             arrow = arrow(length = unit(0.03, "npc")), 
+             lineend="round", 
+             curvature = -0.2) +
+  geom_curve(aes(xend = 0.85, yend = 0.225, x = 0.25, y = 0.425), 
+             size=4, col ="black", 
+             arrow = arrow(length = unit(0.03, "npc")), 
+             lineend="round", 
+             curvature = -0.4) +
+  geom_curve(aes(xend = 0.85, yend = 0.225, x = 0.25, y = 0.425), 
+             size=3, col = mypal[1],
+             arrow = arrow(length = unit(0.03, "npc")), 
+             lineend="round", 
+             curvature = -0.4) +
+  draw_image("fish_silouhette_plotblue.png", x = 0.4, y = 0.75, 
+             hjust = 1, vjust = 1, width = 0.08, height = 0.08) +
+  draw_image("invert_silouhette_plotred.png", x = 0.1, y = 0.95, 
+             hjust = 1, vjust = 1, width = 0.04, height = 0.04) +
+  draw_image("fish_silouhette_plotblue.png", x = 0.4, y = 0.25, 
+             hjust = 1, vjust = 1, width = 0.08, height = 0.08) +
+  draw_image("invert_silouhette_plotred.png", x = 0.25, y = 0.5,
+             hjust = 1, vjust = 1, width = 0.06, height = 0.06) 
+
+# save figure and include in markdown
+save_plot(filename = "output/figs/fig1.png", plot = fig_1, dpi=300, base_height = 10)
+knitr::include_graphics("output/figs/fig1.png")
+```
+**Figure 1:** Hypothesized effect of including invertebrates in the size spectrum: 1) A steepening effect (A, B), and 2) a shallowing effect (C, D). The steepness of the size spectrum arises from the relative abundances of larger and smaller bodied individuals. If invertebrates have a shallower size spectrum slope (i.e. relatively fewer large-bodied individuals) compared to their co-located fish (A), we would expect the slope of the size spectrum of the combined community (fish and invertebrates) to be steeper than the slope of the fish only (B). A shallowing effect (D) would be expected if invertebrates have a relatively greater number of large-bodied individuals compared to the fish-only community (C).
+
+
+### Normalized size spectrum
+
+```{r fig2, warning=F, message=F}
+
+# Models
+nass_mod_v <- read_rds("data/nass_mod_v.rds")
+nass_mod_c <- read_rds("data/nass_mod_c.rds")
+
+# params of models
+vert_slope <- nass_mod_v %>% summary() %>% coef() %>% .[2, "Estimate"]
+vert_incpt <- nass_mod_v %>% summary() %>% coef() %>% .[1, "Estimate"]
+comb_slope <- nass_mod_c %>% summary() %>% coef() %>% .[2, "Estimate"]
+comb_incpt <- nass_mod_c %>% summary() %>% coef() %>% .[1, "Estimate"]
+
+draw_key_cust <- function(data, params, size) {
+  data$fill <- data$colour
+  draw_key_rect(data, params, size)
+}
+
+p7 <- 
+  fread("data/nass.csv") %>% 
+  ggplot(aes(bin_mid, norm_density, colour = group_ordered)) + 
+  geom_point(alpha = 0.05, size = 3, key_glyph = draw_key_cust) +
+  geom_abline(slope = vert_slope, intercept = vert_incpt, alpha  = 1, lwd = 2, colour = mypal[2]) +
+  geom_abline(slope = comb_slope, intercept = comb_incpt, alpha  = 1, lwd = 2, colour = mypal[1]) +
+  xlab("Mass bin (g)") +
+  ylab(expression(paste("Abundance (", m^-2, ")"))) +
+  scale_colour_manual(name = "Community",
+                      labels = c("Fish-only", "Fish and invertebrates"),
+                      values = c(mypal[2], mypal[1])) +
+  theme_bw(40) +
+  annotation_logticks() +
+  scale_x_continuous(breaks = trans_breaks("log2", function(x) 2^x), 
+                     trans = "log2", 
+                     labels = trans_format("log2", math_format(2^.x))) +
+  scale_y_continuous(breaks = trans_breaks("log2", function(x) 2^x), 
+                     trans = "log2", 
+                     labels = trans_format("log2", math_format(2^.x))) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  theme(
+    axis.title.x = element_text(hjust = 0.45, vjust=0),
+    legend.position = "none")
+
+fig_2 <- 
+  ggdraw(p7) +
+  draw_label("Community", colour = "black", size = 30, x = 0.825, y = 0.825) +
+  draw_image("fish_silouhette_plotblue.png", x = 0.8, y = 0.8, hjust = 1, vjust = 1, width = 0.08, height = 0.08) +
+  draw_image("invert_silouhette_plotred.png", x = 0.9, y = 0.75, hjust = 1, vjust = 1, width = 0.06, height = 0.06) +
+  draw_label("+", colour = mypal[1], size = 30, x = 0.825, y = 0.715) +
+  draw_image("fish_silouhette_plotred.png", x = 0.8, y = 0.75, hjust = 1, vjust = 1, width = 0.08, height = 0.08)
+
+
+save_plot(filename = "output/figs/fig_2.png", plot = fig_2, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_2.png")
 ```
 
-## Including Plots
+**Figure 2:** Invertebrates steepen the normalized abundance size spectrum. Separate normalized abundance size spectra are shown for the fish-only and combined (fish and invertebrate) communities, with solid lines representing fits from linear mixed effects models for the global data (“Site” nested within “Ecoregion” as random effects). Fish-only slope = $-1.73 \pm 0.06$, combined slope = $-1.92 \pm 0.04$. Points have been offset on the x-axis for clarity.
 
-You can also embed plots, for example:
+### Map
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+
+```{r fig3, warning=F, message=F}
+# get the natural earth data
+load("data/NaturalEarth.RData")
+
+# set the projection type to 'Robinson'
+PROJ <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs" 
+NE_countries_rob  <- spTransform(NE_countries, CRSobj = PROJ)
+NE_graticules_rob <- spTransform(NE_graticules, CRSobj = PROJ)
+NE_box_rob        <- spTransform(NE_box, CRSobj = PROJ)
+
+# project latitudes and longitudes
+prj.coord <- project(cbind(lbl.Y$lon, lbl.Y$lat), proj=PROJ)
+lbl.Y.prj <- cbind(prj.coord, lbl.Y)
+names(lbl.Y.prj)[1:2] <- c("X.prj","Y.prj")
+
+# add in the slope data
+df.ss <- fread("data/slope_diff.csv") 
+prj.coord.ss <- cbind(df.ss, project(cbind(df.ss$lon, df.ss$lat), proj=PROJ)) %>% filter(!is.na(slope_diff))
+
+# # getting summary statistics 
+floor_dec   <- function(x, level=1) round(x - 5*10^(-level-1), level)
+ceiling_dec <- function(x, level=1) round(x + 5*10^(-level-1), level)
+slope_stats <- df.ss %>% pull(slope_diff) %>% summary()
+slope_min   <- slope_stats["Min."] %>% floor_dec()
+slope_max   <- slope_stats["Max."] %>% ceiling_dec()
+
+# Main map fig
+fig_3B <- 
+  ggplot() +
+  geom_polygon(data=NE_box_rob, aes(x=long, y=lat), colour="gray80", fill="transparent", size = 0.25) +
+  geom_path(data=NE_graticules_rob, aes(long, lat, group=group), linetype="dotted", color="grey50", size = 0.25) +
+  geom_polygon(data=NE_countries_rob, aes(long,lat, group=group), colour="gray80", fill="gray80", size = 0.25) +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  geom_point(data = prj.coord.ss, aes(x=V1, y=V2, colour=slope_diff), size=4, alpha=1) +
+  theme(legend.position = 'bottom', 
+        legend.spacing.x = unit(0.5, 'cm'),
+        legend.text = element_text(margin = margin(t = 10)))+
+  scale_colour_continuous(limits = c(slope_min, slope_max),
+                          breaks = seq(slope_min,slope_max, by = 0.1)) +
+  scale_colour_viridis_c(option = "magma") +
+  guides(col = guide_colourbar(title = expression(paste("Invertebrate inclusion effect (", Delta, lambda, ")")),
+                               label.position = "bottom",
+                               title.position = "top",
+                               title.vjust = 1,
+                               title.hjust = 1, 
+                               frame.colour = "black", 
+                               ticks.colour = "black",
+                               ticks.linewidth = 2,
+                               barwidth = 30,
+                               barheight = 1.5)) +
+  theme(text = element_text(size=30)) +
+  theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+
+# Slope difference barplot
+fig_3C <-  
+  fread("data/lat_bins_slopes.csv") %>% 
+  ggplot(aes(x = lat_bin,  y = mean_slope_diff, fill = mean_slope_diff)) +
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = mean_slope_diff - sd_slope_diff, 
+                    ymax = mean_slope_diff + sd_slope_diff), 
+                width=0, colour="black", alpha=0.9, size=0.8) +
+  scale_fill_viridis_c(option = "magma", limits = c(slope_min, slope_max)) +
+  coord_flip() +
+  theme_classic(20) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.line.x.bottom = element_line(color = 'black'),
+        axis.line.y.left   = element_blank(),
+        panel.background = element_rect(fill = "transparent"), # bg of the panel
+        plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+        panel.grid.major = element_blank(), # get rid of major grid
+        panel.grid.minor = element_blank(), # get rid of minor grid
+        legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+        legend.box.background = element_rect(fill = "transparent"), # get rid of legend panel bg
+        legend.position = "none",
+        aspect.ratio = 2,
+        axis.title.x = element_text(size = 20, colour = "transparent", margin=margin(b=20)))
+
+
+
+# Slope fish-only vs combined barplot
+fig_3A <- 
+  fread("data/lat_bins_slopes.csv") %>% 
+  ggplot(aes(y = mean_slope_comb, x=lat_bin)) + 
+  geom_bar(stat = "identity", aes(fill = mypal[1]), col = "black") +
+  geom_bar(aes(y = mean_slope_vert, x = lat_bin, fill = mypal[2]), stat="identity", col = "black") +
+  coord_flip() +
+  theme_classic(20) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.line.x.bottom = element_line(color = 'black'),
+        axis.line.y.left   = element_blank(),
+        panel.background = element_rect(fill = "transparent"), # bg of the panel
+        plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+        panel.grid.major = element_blank(), # get rid of major grid
+        panel.grid.minor = element_blank(), # get rid of legend panel bg
+        legend.position = "none") +
+  ylab(expression(paste("Mean slope (", bar(lambda), ")"))) +
+  theme(aspect.ratio = 2) +
+  scale_fill_identity()
+
+# adding annotations (images)
+fig_3A_edit <- 
+  ggdraw(fig_3A) + 
+  draw_image("fish_silouhette_plotblue.png", x = 0.63, y = 1.03, hjust = 1, vjust = 1, width = 0.1, height = 0.1) +
+  draw_image("invert_silouhette_plotred.png", x = 0.49, y = 1.02, hjust = 1, vjust = 1, width = 0.07, height = 0.07) +
+  draw_label("+", colour = mypal[1], size = 30, x = 0.4, y = 0.975)
+
+# adding axis title 
+fig_3C_edit <-
+  ggdraw(fig_3C) +
+  draw_label("Mean invertebrate", x = 0.5, y = 0.065, size = 20) + # use relative coordinates for positioning
+  draw_label(expression(paste("inclusion effect (", bar(Delta), bar(lambda), ")")), x = 0.5, y = 0.015, size = 20)
+
+# making the edits into grobs to be added to main fig
+fig_3A_grob = ggplotGrob(fig_3A_edit)
+fig_3C_grob = ggplotGrob(fig_3C_edit)
+
+# useful numbers when adding annotations
+min_lon <- project(cbind(-180,-90), proj=PROJ) %>% .[,1]
+min_lat <- project(cbind(-180,-90), proj=PROJ) %>% .[,2]
+max_lon <- project(cbind(180,90), proj=PROJ) %>% .[,1]
+max_lat <- project(cbind(180,90), proj=PROJ) %>% .[,2]
+
+# final figure all combined
+fig_3 <-
+  fig_3B + 
+  xlim(c(-2.2e7, 2.2e7)) + 
+  annotation_custom(grob = fig_3A_grob, 
+                    xmin = min_lon - 20300000, 
+                    xmax = max_lon - 20300000, 
+                    ymin = min_lat - 200000,
+                    ymax = max_lat - 1500000) + 
+  annotation_custom(grob = fig_3C_grob, 
+                    xmin = min_lon - 20300000 + 4e7, 
+                    xmax = max_lon - 20300000 + 4e7, 
+                    ymin = min_lat - 300000,
+                    ymax = max_lat - 1500000) +
+  annotation_custom(text_grob("A", size = 30),  
+                    xmin = min_lon - 20300000, 
+                    xmax = max_lon - 20300000 - 5e6, 
+                    ymin = min_lat - 200000,
+                    ymax = max_lat - 2200000 + 1.8e7) +
+  annotation_custom(text_grob("B", size = 30),  
+                    xmin = min_lon - 20300000, 
+                    xmax = max_lon - 20300000 + 1e7, 
+                    ymin = min_lat - 200000,
+                    ymax = max_lat - 2200000 + 1.8e7) +
+  annotation_custom(text_grob("C", size = 30),  
+                    xmin = min_lon - 20300000, 
+                    xmax = max_lon - 20300000 + 7.5e7, 
+                    ymin = min_lat - 200000,
+                    ymax = max_lat - 2200000 + 1.8e7) 
+  
+
+save_plot(filename = "output/figs/fig_3.png", plot=fig_3, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_3.png")
+```
+**Figure 3:** The inclusion of invertebrates results in a consistent community size spectrum slope of $\sim -2$. (A) The size spectrum slope for fish-only communities (blue) and when including invertebrates (orange). (B) A map of the invertebrate inclusion effect ($\Delta \lambda$) across the globe. (C) The ‘invertebrate inclusion effect’ ($\Delta \lambda$) on the size spectrum slope varies with latitude, steeper spectra when including invertebrates at high latitudes where more negative represents a greater steepening when including invertebrates in the community size spectrum.. Each bar in A and C represents the mean over 5 degrees of latitude. Error bars in (C) represent the 95\% confidence intervals; missing error bars represent insufficient data.
+
+### Spatial scales
+
+
+
+```{r fig4, warning=F, message=F}
+
+var_outputs <- fread("data/var_outputs.csv")
+
+line_comb_y1 <- var_outputs %>% filter(scale == "Ecoregion", community == "Combined") %>% pull(slope) %>% max()
+line_comb_y2 <- var_outputs %>% filter(scale == "Ecoregion", community == "Combined") %>% pull(slope) %>% min()
+line_comb_y3 <- var_outputs %>% filter(scale == "Site", community == "Combined") %>% pull(slope) %>% median()
+
+line_vert_y1 <- var_outputs %>% filter(scale == "Ecoregion", community == "Vertebrate") %>% pull(slope) %>% max()
+line_vert_y2 <- var_outputs %>% filter(scale == "Ecoregion", community == "Vertebrate") %>% pull(slope) %>% min()
+line_vert_y3 <- var_outputs %>% filter(scale == "Site", community == "Vertebrate") %>% pull(slope) %>% median()
+
+fig_4 <- 
+  var_outputs %>% 
+  ggplot(aes(x = x, y = slope, fill = community, group = fact)) +
+  geom_hline(yintercept = -2, lty = 2) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, data = var_outputs %>% filter(scale != "Global"), key_glyph = draw_key_rect) +
+  geom_point(data = var_outputs %>% filter(scale == "Global"), 
+             colour="black", 
+             shape=21, 
+             size = 5, 
+             key_glyph = draw_key_rect) +
+  theme_bw(40) +
+  labs(y = expression(lambda),
+       x = element_blank()) +
+  scale_x_continuous(breaks = c(2,4,6), 
+                     labels = c("Global\n(overall mean)", "Ecoregion\n(across Ecoregion)", "Site\n(within Ecoregion)")) +
+  scale_fill_manual(values = c(mypal[2], mypal[1]), name = "Community", labels = c("Fish-only", "Fish and invertebrates")) +
+  theme(
+    axis.title.y = element_text(angle = 0, vjust = 0.5),
+    axis.title.x = element_text(hjust = 0.45, vjust=0),
+    legend.position = c(0.18, 0.85), 
+    legend.background = element_rect(fill = "transparent"), 
+    legend.key.size = unit(1, "cm"), 
+    legend.key = element_rect(colour = "black", fill = NA),
+    legend.title = element_text(size = 40),
+    legend.text = element_text(size = 25)) +
+  annotate("segment", x = 5.5, y = line_vert_y3, xend = 3.5, yend = line_vert_y1, lty = 2, alpha=0.4) +
+  annotate("segment",x = 5.5, y = line_vert_y3, xend = 3.5, yend = line_vert_y2, lty = 2, alpha=0.4) +
+  annotate("segment",x = 6.5, y = line_comb_y3, xend = 4.5, yend = line_comb_y1, lty = 2, alpha=0.4) +
+  annotate("segment",x = 6.5, y = line_comb_y3, xend = 4.5, yend = line_comb_y2, lty = 2, alpha=0.4)
+
+save_plot(filename = "output/figs/fig_4.png", plot=fig_4, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_4.png")
+```
+**Figure 4:** The contribution of spatial scale to abundance size spectra slope estimates. “Ecoregion” refers to the variation among ecoregions globally in the linear mixed effects model and “Site” refers to the variation among individual reef sites within ecoregions. Dotted lines between the violins are added to emphasize that the variation at the site level represents the added variation after accounting for the variation at the ecoregion level. A horizontal dotted line at -2 is added to highlight the slope in previous studies based on pelagic studies.
+
+## Supplementary material
+
+### Mean body size
+
+log(L_{\mu}) = \beta_0 + \beta_1log(L_{\infty}) + C + \epsilon
+
+```{r fig_s1, warning=F, message=F}
+
+# Models 
+lm_mean  <- lm_mean <- lm(L_mean_log ~ log_lmax + class, data = fread("data/lm_mean.csv")) 
+
+fig_s1_1 <- 
+  fread("data/lm_mean.csv") %>% 
+  mutate(fit_mean = predict(lm_mean)) %>%
+  ggplot(aes(log_lmax, L_mean_log)) +
+  geom_point(size = 3) +
+  facet_wrap(~class) +
+  geom_line(aes(log_lmax, fit_mean), colour = mypal[1], size=2) + 
+  labs(x=expression(paste(log(L[infinity]), ", cm")), 
+       y=expression(paste(log(L[mu]), ", cm"))) +
+  theme_bw(base_size = 30) 
+
+save_plot(filename = "output/figs/suppl_S1_1.png", plot = fig_s1_1, dpi=300, base_height = 10)
+knitr::include_graphics("output/figs/suppl_S1_1.png")
+```
+**Figure S1:** The normalized abundance size spectrum for 93 coastal ecoregions. Linear mixed effects models are fitted with site nested within ecoregion as random effects. Each site is individually coloured within the ecoregion. Axes are on the log-log scale.
+
+
+### Standard deviation body size
+
+$log(L_{\sigma}) = \beta_0 + \beta_1log(L_{\infty})+ \epsilon$
+
+```{r fig_s1_2, warning=F, message=F}
+
+# Model 
+lm_sd <- lm(L_sd_log ~ log_lmax, data = fread("data/lm_sd.csv"))
+
+fig_s1_2 <- 
+  fread("data/lm_sd.csv") %>% 
+  mutate(fit_mean = predict(lm_sd)) %>%
+  ggplot(aes(log_lmax, L_sd_log)) +
+  geom_point(size = 3) +
+  geom_line(aes(log_lmax, fit_mean), colour=mypal[1], size = 2) + 
+  labs(x=expression(paste(log(L[infinity]), ", cm")), 
+       y=expression(paste(log(L[sigma]), ", cm"))) +
+  theme_bw(base_size = 30) 
+
+save_plot(filename = "output/figs/suppl_S1_2.png", plot = fig_s1_2, dpi=300, base_height = 10)
+knitr::include_graphics("output/figs/suppl_S1_2.png")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+**Figure S2:** The relationship between asymptotic size, $L_\infty$, and the standard deviation of the lognormal distribution, $L_\sigma$, for 236 invertebrate species across seven classes, with a fitted linear model.
+
+
+### Body size estimates
+
+```{r fig_s1_3, warning=F, message=F}
+
+# Creates a density function for which to plot
+create_lnorm_dens <- function(df, meanlog, sdlog){
+  data.frame(
+    size_class = seq(from = 0, to = max(df$LMAX)*1.5, length = 100)) %>% 
+    mutate(prob = dlnorm(size_class, meanlog=unique(meanlog), sdlog=unique(sdlog)))
+}
+
+# Probability density based on observed data
+obs_dens <- 
+  fread("data/size_est.csv") %>% 
+  group_by(species_name) %>% 
+  nest() %>% 
+  mutate(normal_curve = map(data, ~create_lnorm_dens(., .$meanlog, .$sdlog))) %>% 
+  select(-data) %>% 
+  unnest(cols = c(normal_curve))
+
+# Probability density based on data estimated from LMAX
+est_dens <-   
+  fread("data/size_est.csv") %>% 
+  group_by(species_name) %>% 
+  nest() %>% 
+  mutate(normal_curve = map(data, ~create_lnorm_dens(., .$meanlog_est, .$sdlog_est))) %>% 
+  select(-data) %>% 
+  unnest(cols = c(normal_curve))
+
+# All together
+fig_s1_3 <-
+  fread("data/sizes.csv") %>% 
+  ggplot() +
+  aes(size_class) +
+  geom_histogram(aes(y=..density..), bins = 30, alpha=0.5) +
+  facet_wrap(~species_name, scales="free") + 
+  geom_line(aes(y = prob), data = obs_dens, colour = mypal[3], size = 2) +
+  geom_line(aes(y = prob), data = est_dens, colour = mypal[4], size = 2) +
+  geom_vline(aes(xintercept = (LMAX)), col=mypal[5], lty=2, size = 1.5) +
+  labs(x = "Size class, cm",
+       y = "Probability density") +
+  theme_grey(22)
+
+save_plot("output/figs/fig_s1_3.png", fig_s1_3, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_s1_3.png")
+
+```
+
+**Figure S1.3:** Estimating invertebrate body size distributions. The observed body length distributions (grey bars) of the 20 invertebrate species with the greatest number of body size estimates. The green line indicates the lognormal distribution fitted to the observed body length data, whilst the blue line represents the estimated lognormal distribution based solely on the asymptotic body length ($L_\infty$, orange dashed line) of the species and its taxonomic class.
+
+### Length-weight conversion
+
+$log(M_{\infty}) = \beta_0 + \beta_1log(L_{\infty}) + \epsilon$
+
+$log(M_{\infty}) = \beta_0 + \beta_1log(L_{\infty}) + C + \epsilon$
+
+```{r fig_s2, warning=F, message=F}
+
+# models
+LW_mod1 <- lm(log_mmax ~ log_lmax, fread("data/lw.csv")) 
+LW_mod2 <- lm(log_mmax ~ log_lmax + class, fread("data/lw.csv"))
+
+fig_s2 <- 
+  fread("data/lw.csv") %>% 
+  mutate(log_mmax_fit = predict(LW_mod2)) %>% 
+  ggplot() +
+  aes(log_lmax, log_mmax) +
+  geom_point(size = 3) + 
+  facet_wrap(.~class) +
+  geom_line(aes(log_lmax, log_mmax_fit), col = mypal[1], size = 2) + 
+  geom_abline(aes(intercept = LW_mod1$coefficients[1], slope = LW_mod1$coefficients[2]), lty=2, size=1.5, col="grey70") + 
+  labs(x=expression(paste(log(L[infinity]), ", cm")), 
+       y=expression(paste(log(M[infinity]), ", g"))) +
+  theme_bw(base_size = 30) 
+
+save_plot("output/figs/fig_s2.png", fig_s2, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_s2.png")
+```
+
+**Figure S2:** The relationship between body length and body mass for 85 invertebrate species. Two linear models are shown, the  first with taxonomic class included as a predictor variable (solid red line) and the second without (dashed grey line).
+
+
+### Cut-off
+
+```{r fig_s3, warning=F, message=F}
+fig_s3 <- 
+  fread("data/cutoff.csv") %>% 
+  mutate(group_ordered =  factor(group, 
+                                 levels = c("Vertebrate",
+                                            "Invertebrate"), ordered = TRUE)) %>% 
+    ggplot(aes(log2(bin_mid), log_bin_density, fill = group_ordered)) +
+  geom_vline(xintercept = 5, size = 2, lty = 2, col="grey70") +
+  geom_point(size = 3,  pch = 21, key_glyph = draw_key_rect) + 
+  geom_smooth(se = F,  size = 2, aes(colour = group_ordered), show.legend = F, method = "loess") +
+  facet_wrap(~lat_region) + 
+  annotation_logticks(base = 2) +
+  xlab(expression(paste(log[2], "(M)"))) +
+  ylab(expression(paste(log[2], "(N)"))) + 
+  theme_bw(40) +
+  scale_color_manual(values = c(mypal[2], mypal[1]), guide = "none") +
+  scale_fill_manual(values = c(mypal[2], mypal[1]), name = "Community", labels = c("Fish-only", "Invertebrate-only")) +
+  theme(
+    axis.title.x = element_text(hjust = 0.45, vjust=0),
+    legend.position = c(0.35, 0.85), 
+    legend.background = element_rect(fill = "transparent"), 
+    legend.key.size = unit(1, "cm"), 
+    legend.key = element_rect(colour = "black", fill = NA),
+    legend.title = element_text(size = 30),
+    legend.text = element_text(size = 20))
+
+save_plot("output/figs/fig_s3.png", fig_s3, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_s3.png")
+```
+
+
+**Figure S3:** Entire size spectra for invertebrate-only and fish-only reef communities. Dotted grey vertical line at $2^5$ (= 32g) indicates the lower-bound size bin used as the cut-off. A smooth line is fitted using locally estimated scatterplot smoothing (LOESS).
+
+### Visiualisation
+
+```{r fig_s4, warning=F, message=F}
+fig_s4 <- 
+  fread("data/nass_fitted.csv") %>% 
+    ggplot(aes(bin_mid, norm_density, colour = as.factor(site_id))) + 
+    geom_point() +
+    geom_line(aes(y = norm_density_fit)) +
+    xlab("Mass bin, g") +
+    ylab(expression(paste("Abundance, ", m^-2))) +
+    scale_x_continuous(breaks = trans_breaks("log2", function(x) 2^x), trans = "log2", labels = trans_format("log2", math_format(2^.x))) +
+    scale_y_continuous(breaks = trans_breaks("log2", function(x) 2^x), trans = "log2", labels = trans_format("log2", math_format(2^.x))) +
+    facet_wrap(~ecoregion_trim) + 
+    theme_bw(14) +
+    theme(legend.position = "none",
+          axis.title = element_text(size = 30), 
+          axis.text = element_text(size = 14))
+
+save_plot("output/figs/fig_s4.png", fig_s4, base_height = 10, dpi=300)
+knitr::include_graphics("output/figs/fig_s4.png")
+```
+
+**Figure S4:** The normalized abundance size spectrum for 93 coastal ecoregions. Linear mixed effects models are fitted with site nested within ecoregion as random effects. Each site is individually coloured within the ecoregion. Axes are on the log-log scale.
+
+### Latitude zones
+
+```{r figs4, warning=F, message=F}
+dodge <- position_dodge(width = 1)
+
+fig_s5 <- 
+  fread("data/lat_zone.csv") %>% 
+  mutate(lat_zone_ordered = factor(lat_zone, levels = c("Tropical",
+                                                        "Temperate",
+                                                        "Polar"), ordered = TRUE)) %>% 
+  mutate(name_ordered = factor(name, levels = c("slope_vert",
+                                                "slope_comb"), ordered = TRUE)) %>% 
+  ggplot(aes(lat_zone_ordered, value, fill = name_ordered)) +
+  geom_hline(yintercept = -2, lty=2) +
+  geom_violin(position = dodge) +
+  geom_boxplot(width = 0.1, position = dodge, key_glyph = draw_key_rect) + 
+  theme_bw(40) +
+  labs(y = expression(lambda),
+       x = element_blank()) +
+  scale_fill_manual(values = c(mypal[2], mypal[1]), name = "Community", labels = c("Fish-only", "Fish and invertebrates")) +
+  theme(
+    axis.title.y = element_text(angle = 0, vjust = 0.5),
+    axis.title.x = element_text(hjust = 0.45, vjust=0),
+    legend.position = c(0.16, 0.9), 
+    legend.background = element_rect(fill = "transparent"), 
+    legend.key.size = unit(1, "cm"), 
+    legend.key = element_rect(colour = "black", fill = NA),
+    legend.title = element_text(size = 40),
+    legend.text = element_text(size = 25)
+  )
+
+save_plot("output/figs/fig_s5.png", plot = fig_s5, base_height = 10, dpi = 300)
+knitr::include_graphics("output/figs/fig_s5.png")
+```
+
+**Figure S5:** Reef size spectra slope estimates by latitudinal zone. Distribution of estimates of the site-level normalized abundance size spectrum slope ($\lambda$) for temperate and tropical sites. A dotted line at -2 is added to highlight the theoretical expected value.
