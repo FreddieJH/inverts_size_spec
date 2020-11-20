@@ -832,7 +832,7 @@ fig_s7_together <-
             fig_s7b_nolegend, 
             legend, 
             nrow=3) 
-fig_s7_1 <- 
+fig_s7 <- 
   ggdraw(fig_s7_together) +
   draw_plot_label(
     c("A", "B"),
@@ -841,8 +841,8 @@ fig_s7_1 <-
     size = 12
   )
 
-save_as_plot(fig_s7_1, "fig_s7_1", output_type = c("png", "eps", "pdf"), asp_ratio = 0.75)
-knitr::include_graphics("output/figs/png/fig_s7_1.png")
+save_as_plot(fig_s7, "fig_s7", output_type = c("png", "eps", "pdf"), asp_ratio = 0.75)
+knitr::include_graphics("output/figs/png/fig_s7.png")
 ```
 
 
