@@ -6,4 +6,4 @@ This script should create all the figures found in the paper as well as in the s
 If you have any questions regarding this code, please contact freddieheather@gmail.com
 
 
-https://zenodo.org/badge/DOI/10.5281/zenodo.4287663.svg
+https://doi.org/10.5281/zenodo.4287663
