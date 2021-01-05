@@ -1,5 +1,5 @@
 # inverts_size_spec
-Code for the analysis used in study "Globally consistent reef size spectra integrating fishes and invertebrates"
+Code for the analysis used in study: **Heather, F.J., Blanchard, J.L., Edgar, G.J., Trebilco, R. and Stuart‐Smith, R.D., 2020. Globally consistent reef size spectra integrating fishes and invertebrates. Ecology Letters.**
 
 This script should create all the figures found in the paper as well as in the supplementary material. 
 
